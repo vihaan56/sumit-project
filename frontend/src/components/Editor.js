@@ -31,7 +31,6 @@ const modules = {
 };
 
 function Editor() {
-
   const [value, setValue] = useState();
 
   return (

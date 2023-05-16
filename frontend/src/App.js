@@ -14,7 +14,8 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<SignIn />} />
         <Route path="/signup" element={<Signup />} />
-        <Route exact path="/editor/:id" element={<Editor />} />
+        <Route exact path="/editor" element={<Editor />} />
+        <Route exact path="/newroom/:id" element={<Editor />} />
       </Routes>
     </BrowserRouter>
   );

@@ -153,7 +153,7 @@ export const Navbar = () => {
                     gap: "1rem",
                 }}
             >
-                <NavLink onClick={() => navigate('/editor/ae3df5')} variant="body2">Guest</NavLink>
+                <NavLink onClick={() => navigate('/editor')} variant="body2">Guest</NavLink>
                 <NavLink onClick={() => navigate('/login')} variant="body2">Sign In</NavLink>
                 <CustomButton
                     backgroundColor="#0F1B4C"
