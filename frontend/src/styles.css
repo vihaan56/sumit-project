@@ -1,0 +1,57 @@
+.ql-container{
+  width: 80%;
+  background: #FFF;
+  /* box-shadow: 0 0 1px 0 rgba(0, 0, 0, 0.5); */
+  margin: 10px auto 10px auto !important;
+  border:1px solid #c7c7c7 !important;
+  min-height: 100vh;
+}
+
+.ql-toolbar.ql-snow {
+    display: flex;
+    /* justify-content: center; */
+    position: sticky;
+    top: 0;
+    margin:20px !important;
+    border-radius:20px;
+    z-index: 1;
+    background: #edf2fa;
+    border: none !important;
+    /* box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5); */
+  }
+
+  .navbar{
+    display: flex;
+    justify-content:space-between;
+    /* position:fixed; */
+    /* top:0; */
+    /* z-index: 10; */
+  }
+  .navbar .left-side{
+   margin-left:40px;
+   margin-top:30px;
+  }
+  .navbar .right-side{
+   margin-right:60px;
+   margin-top:30px;
+  }
+ .rename_area{
+    display: flex;
+     
+
+ }
+ .logo{
+    font-size:34px;
+ }
+ #united_text{
+    border:0px solid;
+    margin-left:10px;
+    font-size: 16px;
+    color:#595a5a;
+
+ }
+ #united_text:hover{
+    border: 1px solid #aca9a9cc;
+ } 
+
+ button_primary{}
