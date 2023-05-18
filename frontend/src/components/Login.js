@@ -90,14 +90,14 @@ export default function SignIn() {
               }
           })
           .catch((error) => {
-
            console.log(error);
           })    
         
         }
 
+  
         if (flag) {
-            return <Navigate to={"/editor/0b060dd5-b6ad-45"} />;
+            return <Navigate to={"/user/0b060dd5-b6ad-45"} />;
           }
         
     return (

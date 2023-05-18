@@ -2,7 +2,7 @@ import React from 'react';
 // import { Button } from '@mui/material';
 import { Avatar, Button, Card, CardContent, Chip, Typography } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { Height } from '@mui/icons-material';
+import { Height, Logout } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 
@@ -12,25 +12,33 @@ const PreviousDocuments = () => {
 
     return (
         <div>
-            <div style={{ display: 'flex' }}>
-                <Button onClick={() => navigate('/editor/0b060dd5-b6ad-45')} variant="contained" color="primary" size="large" style={{ display: 'block' }} sx={{ mt: 2, ml: 'auto', mr: 'auto' }}>
+            <div style={{ display: 'flex', marginBottom:'6rem' }}>
+                <Button onClick={() => navigate('/editor/0b060dd5-b6ad-45')} variant="contained" color="primary" size="large" style={{ display: 'block' }} sx={{ mt: 2, ml: 'auto', mr: '14rem'}}>
                     Create New Document
+                </Button>
+
+                <Button sx={{ mt: '1.5rem', mr: '2rem' }} size='small' variant="contained" endIcon={<Logout />} onClick={()=>navigate('/')}>
+                    Logout
                 </Button>
 
                 <Chip
                     avatar={<Avatar alt="Natacha" src="/static/images/avatar/1.jpg" />}
                     label="Avatar"
                     variant="contained"
-                    sx={{mt:'1.5rem',mr:'5rem'}}  
+                    sx={{ mt: '1.5rem', mr: '5rem' }}
                 />
+
+
+
             </div>
 
             {/* <Chip avatar={<Avatar>M</Avatar>} label="Avatar" /> */}
-           
+
 
             <Typography variant="h5" style={{ textAlign: 'center', margin: '2rem 0' }}>
                 Previous Documents
             </Typography>
+
             <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '2rem', }}>
                 {documents.map((document, index) => (
                     <Card key={index} style={{ width: '200px', margin: '0 1rem', }}>

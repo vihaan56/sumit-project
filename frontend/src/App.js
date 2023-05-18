@@ -6,6 +6,7 @@ import './styles/styles.css';
 import SignIn from "./components/Login";
 import Signup from "./components/Signup";
 import HomePage from "./components/HomePage";
+import PreviousDocuments from "./components/Document";
 function App() {
   return (
     <BrowserRouter>
@@ -13,6 +14,7 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<SignIn />} />
         <Route path="/signup" element={<Signup />} />
+        <Route exact path="/user/:userid" element={<PreviousDocuments />} />
         <Route exact path="/editor/:docid" element={<Editor />} />
       </Routes>
     </BrowserRouter>
