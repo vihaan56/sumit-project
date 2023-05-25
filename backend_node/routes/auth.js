@@ -5,6 +5,7 @@ var bcrypt = require("bcryptjs");
 var jwt = require("jsonwebtoken");
 const JWT_TOKEN = "IAMVIHAANSINGLA";
 const User = require("../models/Users");
+const validator = require('validator');
 
 const fetchuser = require("../middlewares/fetchuserdata");
 
@@ -32,6 +33,9 @@ router.post("/register", async (req, res) => {
     const userExist = await checkIfUserExists(email);
     if (userExist) {
       res.json({ status: "error", message: "Email already exists" });
+    }
+    else if(!validator.isEmail(email)) {
+      res.json({ status: "error", message: "Email is not valid" });
     } else {
       const userdata = new User({
         firstname,
@@ -47,6 +51,7 @@ router.post("/register", async (req, res) => {
         user: {
           id: userdata._id,
           name: userdata.firstname,
+          lastname: userdata.lastname
         },
       };
 
@@ -56,7 +61,9 @@ router.post("/register", async (req, res) => {
         status: "success",
         authtoken: authtoken,
         message: "Data saved successfully",
-        type: userdata.type,
+        firstname: userdata.firstname,
+        lastname: userdata.lastname,
+        id: userdata._id,
       });
     }
   } catch (err) {
