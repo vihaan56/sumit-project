@@ -44,7 +44,7 @@ const HomePage = () => {
                                 mb: 4,
                             }}
                         >
-                            Welcome to Besnik Agency
+                            Welcome to BitEditor
                         </Typography>
                         <Title variant="h1">
                             Discover a place where you'll love to live.
@@ -57,13 +57,7 @@ const HomePage = () => {
                             mass market! Hot foreclosure deals with one simple search!
                         </Typography>
 
-                        <CustomButton
-                            backgroundColor="#0F1B4C"
-                            color="#fff"
-                            buttonText="More About Us"
-                            heroBtn={true}
-                            
-                        />
+                        
                     </Box>
 
                     <Box sx={{ flex: "1.25" }}>

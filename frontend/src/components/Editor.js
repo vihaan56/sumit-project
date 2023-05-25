@@ -4,6 +4,10 @@ import Quill from "quill";
 import * as Y from "yjs";
 import { QuillBinding } from "y-quill";
 import axios from "axios";
+import Cursors from "quill-cursors";
+import tippy from "tippy.js";
+import "tippy.js/dist/tippy.css";
+
 import "quill/dist/quill.snow.css";
 import {
   IconButton,
@@ -13,6 +17,7 @@ import {
   ListItemText,
 } from "@mui/material";
 import { Assignment as AssignmentIcon } from "@mui/icons-material";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import io from "socket.io-client";
 import Navbar from "./Navbar";
 import {
@@ -21,10 +26,47 @@ import {
   DialogTitle,
   DialogContent,
   TextField,
+  Popover,
+  Snackbar,
+  Alert,
+  Chip,
 } from "@mui/material";
 import { Navigate, useParams } from "react-router-dom";
+import ScrollableFeed from "react-scrollable-feed";
 
 import { v4 as uuid } from "uuid";
+import { TextareaAutosize } from "@mui/material";
+// import TextField from '@mui/material/TextField';
+
+import RightBubble from "./RightBubble";
+import LeftBubble from "./LeftBubble";
+
+const textareaStyle = {
+  resize: "none",
+  outline: "none",
+  width: "100%",
+  maxHeight: "40px",
+  overflowY: "auto",
+  boxSizing: "border-box",
+  borderRadius: "8px",
+  border: "1px solid #c7c7c7",
+  padding: "8px",
+  fontFamily: "inherit",
+  fontSize: "0.9rem",
+  fontWeight: "500",
+};
+const bottomDivStyle = {
+  borderTop: "1px solid #ccc",
+  borderBottom: "none",
+  borderLeft: "none",
+  borderRight: "none",
+  width: "100%",
+  minHeight: "20px",
+  // marginLeft:'3px',
+  marginTop: "auto",
+
+  // marginRight:'3px'
+};
 
 const modules = {
   toolbar: [
@@ -44,7 +86,6 @@ const modules = {
     [{ color: [] }, { background: [] }], // dropdown with defaults from theme
     [{ align: [] }],
 
-    ["link", "image"],
     // ['clean']                                         // remove formatting button
   ],
 };
@@ -56,38 +97,50 @@ const modules = {
 let socket;
 
 function Editor() {
-  const [value, setValue] = useState();
+  const [message, setmessage] = useState("");
+  const [createromloading, setcreateroomloading] = useState(false);
   const [yDoc, setYdoc] = useState(null);
   const [yText, setYtext] = useState(null);
   const timerRef = useRef(null);
+  const debouncedCursorUpdateRef = useRef(null);
+  const [socketref, setsocket] = useState(null);
   const editorRef = useRef(null);
-  const quillEditorRef = useRef(null);
   const yTextRef = useRef(null);
+  const [popupvariable, setpopupvariable] = useState(null);
+  const [isCopied, setIsCopied] = useState(false);
+
   const { docid } = useParams();
   const [open2, setOpen2] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [anchorEl2, setAnchorEl2] = useState(null);
   const [room_title, setroomtitle] = useState("");
   const [room_name, setroomname] = useState("");
+  const [chats, setchats] = useState([]);
   const [join_room_name, setjoinroomname] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [flag, setflag] = useState(false);
-  const [documentList, setDocumentList] = useState([
-    { id: 1, name: "Document 1" },
-    { id: 2, name: "Document 2" },
-    { id: 3, name: "Document 3" },
-    { id: 4, name: "Document 3" },
-    { id: 5, name: "Document 3" },
-    { id: 6, name: "Document 3" },
-    { id: 7, name: "Document 3" },
-    { id: 8, name: "Document 3" },
-    { id: 9, name: "Document 3" },
-    { id: 10, name: "Document 3" },
-    { id: 11, name: "Document 3" },
-    { id: 12, name: "Document 3" },
-    { id: 13, name: "Document 3" },
-    // Add more documents here...
-  ]);
+  const [documentList, setDocumentList] = useState([]);
+  let isCurrentUserSelecting = false; // Flag to track if the current user is making a selection
+
+  const [openAlert, setOpen] = useState(false);
+
+  const [message2, setMessage2] = useState("");
+
+  const handletextareachange = (event) => {
+    setMessage2(event.target.value);
+  };
+
+  const handleAlertClick = () => {
+    setOpen(true);
+  };
+
+  const handleAlertClose = (event, reason) => {
+    if (reason === "clickaway") {
+      return;
+    }
+
+    setOpen(false);
+  };
 
   if (localStorage.getItem("auth_token") != null) {
     const authaxios = axios.create({
@@ -115,6 +168,19 @@ function Editor() {
   }
 
   const handleOpen2 = () => {
+    axios({
+      url: "http://localhost:3002/api/v1/routes/get_user_documents",
+      method: "POST",
+      headers: {
+        "auth-token": JSON.parse(localStorage.getItem("auth_token")).auth_token,
+      },
+    })
+      .then((response) => {
+        setDocumentList(response.data.data);
+      })
+      .catch((error) => {
+        console.log(error);
+      });
     setOpen2(true);
   };
 
@@ -126,11 +192,9 @@ function Editor() {
     setSearchTerm(event.target.value);
   };
 
-  const filteredDocuments = documentList.filter((document) =>
-    document.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const handleCopyToClipboard = () => {
+    setmessage("Room key copied!");
+    handleAlertClick();
     navigator.clipboard.writeText(room_name);
   };
   const handleClick = (event) => {
@@ -157,39 +221,38 @@ function Editor() {
   const handleChange3 = (event) => {
     setjoinroomname(event.target.value);
   };
+
+  const handlepopup = (event) => {
+    setpopupvariable(event.currentTarget);
+  };
+
+  const handleclosepopup = () => {
+    setpopupvariable(null);
+    setIsCopied(false);
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(localStorage.getItem("roomName"));
+    setIsCopied(true);
+  };
+
   const open = Boolean(anchorEl);
   const open3 = Boolean(anchorEl2);
 
   // some other stuff
-  const builddocument = () => {
-    var title = "Untitled Document";
-    var content = "vihaan";
-    const unique_id = uuid();
-    const uid = unique_id.slice(0, 16);
-
-    axios({
-      url: "http://localhost:3002/api/v1/routes/create_documents",
-      method: "POST",
-      data: { title, content, uid },
-      headers: {
-        "auth-token": JSON.parse(localStorage.getItem("auth_token")).auth_token,
-      },
-    })
-      .then((response) => {
-        // console.log(response);
-
-        localStorage.setItem("doc_id", response.data.data);
-        // setdocid(response.data.data)
-      })
-      .catch((err) => {
-        console.log(err);
-      });
-  };
 
   useEffect(() => {
     if (docid && yDoc) {
       const doc_id = docid;
-      localStorage.setItem("doc_id",doc_id);
+      if (doc_id == "null" || doc_id == "undefined") {
+        window.location.href = "/";
+      }
+      if (localStorage.getItem("doc_id") !== doc_id) {
+        if (!localStorage.getItem("roomName")) {
+          localStorage.setItem("doc_id", doc_id);
+        }
+      }
+
       const user_id = JSON.parse(localStorage.getItem("auth_token")).userid;
       try {
         axios({
@@ -209,7 +272,6 @@ function Editor() {
             yDoc.transact(() => {
               Y.applyUpdate(yDoc, uint8Array);
             });
-            
           })
           .catch((err) => {
             console.log(err);
@@ -221,103 +283,139 @@ function Editor() {
     }
   }, [docid, yDoc]);
 
-  useEffect(() => {
-    const ydoc = new Y.Doc();
-    const ytext = ydoc.getText("quill");
-    setYdoc(ydoc);
-    setYtext(ytext);
-    // builddocument();
+  const getchats = () => {
+    const room_id = localStorage.getItem("roomName");
+    const doc_id = localStorage.getItem("doc_id");
 
-    // Insert the initial content
-
-    const editor = new Quill(editorRef.current, {
-      theme: "snow",
-      modules: modules,
-      cursors: true,
-    });
-
-    editor.on("text-change", (delta, oldDelta, source) => {
-      const delta2 = editor.getContents();
-
-      // Apply the delta to the YText document
-      ydoc.transact(() => {
-        const ytext2 = ydoc.getText("document");
-        ytext2.applyDelta(delta);
+    axios({
+      url: "http://localhost:3002/api/v1/chat/get_chat",
+      method: "post",
+      data: { room_id, doc_id },
+    })
+      .then((response) => {
+        console.log(response);
+        setchats(response.data.data);
+      })
+      .catch((error) => {
+        console.log(error);
       });
+  };
 
-      const update2 = Y.encodeStateAsUpdate(ydoc);
+  useEffect(() => {
+    const connectSocket = () => {
+      const storedRoomName = localStorage.getItem("roomName");
+      if (storedRoomName) {
+        socket = io("http://localhost:3002");
+        const username = JSON.parse(localStorage.getItem("auth_token")).name;
 
-      clearTimeout(timerRef.current);
+        socket.emit("join-room", storedRoomName, username);
+        if (socket) {
+          socket.on("connect", () => {
+            setsocket(socket);
+          });
 
-      timerRef.current = setTimeout(() => {
-        const update = Y.encodeStateAsUpdate(ydoc);
-        const doc_id = localStorage.getItem("doc_id");
-        axios
-          .post("http://localhost:3002/api/v1/routes/update_document", {
-            doc_id,
-            update,
-          })
-          .then((response) => {
-            // console.log(response);
-          })
-          .catch((error) => {});
-      }, 500); // A
+          socket.on("room-join", (username) => {
+            setmessage(`${username} Joined this document`);
+            handleAlertClick();
+          });
+          socket.on("disconnect-user", (name) => {
+            setmessage(`${name} leave this document`);
+            handleAlertClick();
+          });
+          socket.on("chat-message", (data) => {
+            const chatdata = JSON.parse(data);
+            setchats((chats) => [...chats, chatdata]);
+          });
 
-      if (socket) {
-        if (source === "user") {
-          ydoc.transact(() => {
-            ytext.applyDelta(delta);
+          socket.on("yjs-update", (update) => {
+            const updatedarray = new Uint8Array(update);
 
-            const update = Y.encodeStateAsUpdate(ydoc);
-
-            socket.emit("yjs-update", update);
+            ydoc.transact(() => {
+              Y.applyUpdate(ydoc, updatedarray);
+            });
           });
         }
       }
-    });
+    };
 
-    var typeBinding = new QuillBinding(ytext, editor);
-    quillEditorRef.current = editor;
+    connectSocket();
+
+    if (socket) {
+      getchats();
+    }
+    const ydoc = new Y.Doc();
+
+    const ytext = ydoc.getText("quill");
+
+    let editor = null;
+    let typeBinding = null;
+    setYdoc(ydoc);
+    setYtext(ytext);
+    // Insert the initial content
+    editor = new Quill(editorRef.current, {
+      theme: "snow",
+      modules: modules,
+    });
     yTextRef.current = ytext;
 
-    const storedRoomName = localStorage.getItem("roomName");
-    if (storedRoomName) {
-      socket = io("http://localhost:3002");
-      socket.emit("join-room", storedRoomName);
-      // socket.emit("yjs-sync");
-
-      socket.on("connect", () => {
-        console.log("Socket connected");
+    if (editor.container) {
+      editor.on("selection-change", (range) => {
+        if (range) {
+        }
       });
+      // Event handler for when the current user starts making a selection
 
-      socket.on("yjs-update", (update) => {
-        const updatedarray = new Uint8Array(update);
+      typeBinding = new QuillBinding(ytext, editor);
+      editor.on("text-change", (delta, oldDelta, source) => {
+        clearTimeout(debouncedCursorUpdateRef.current);
 
+        debouncedCursorUpdateRef.current = setTimeout(() => {
+          const version = editor.getContents();
+        }, 500);
+
+        // Apply the delta to the YText document
         ydoc.transact(() => {
-          Y.applyUpdate(ydoc, updatedarray);
+          const ytext2 = ydoc.getText("document");
+          ytext2.applyDelta(delta);
         });
 
-        const delta = ytext.toDelta();
+        clearTimeout(timerRef.current);
 
-        // error on this upper line unexpected end of array
+        timerRef.current = setTimeout(() => {
+          const update = Y.encodeStateAsUpdate(ydoc);
+          const doc_id = localStorage.getItem("doc_id");
+          axios
+            .post("http://localhost:3002/api/v1/routes/update_document", {
+              doc_id,
+              update,
+            })
+            .then((response) => {
+              // console.log(response);
+            })
+            .catch((error) => {});
+        }, 500); // A
+
+        if (socket) {
+          if (source === "user") {
+            ydoc.transact(() => {
+              ytext.applyDelta(delta);
+
+              const update = Y.encodeStateAsUpdate(ydoc);
+
+              socket.emit("yjs-update", update);
+            });
+          }
+        }
       });
 
-      // socket.on("message", (data) => {
-      //   // Handle the received message here
-      //   const messagePayload = data.payload;
-      //   const senderChannelName = data.senderChannelName;
-      //   console.log(messagePayload);
-      //   console.log(senderChannelName);
-      //   // Do something with the message data
-      //   // ...
-      // });
-
-      return () => {
-        typeBinding.destroy();
-        clearTimeout(timerRef.current);
-        socket.disconnect();
-      };
+      // editor.getModule("cursors").registerBinding({yjs:typeBinding});
     }
+
+    return () => {
+      clearTimeout(timerRef.current);
+      // editorRef.current = null;
+      // editor.dispose(); // Dispose the editor instance
+    };
   }, []);
 
   if (flag) {
@@ -328,37 +426,102 @@ function Editor() {
     return <Navigate to="/login" />;
   }
 
+  if (localStorage.getItem("doc_id") !== docid) {
+    return <Navigate to={`/editor/${localStorage.getItem("doc_id")}`} />;
+  }
+  const handleexitroom = () => {
+    if (localStorage.getItem("roomName")) {
+      localStorage.removeItem("roomName");
+    }
+
+    if (localStorage.getItem("doc_id")) {
+      localStorage.removeItem("doc_id");
+    }
+    if(localStorage.getItem("token")) {
+       localStorage.removeItem("token");
+    }
+    socket.disconnect();
+
+    window.location.href = `/user/${JSON.parse(localStorage.getItem("auth_token")).userid}`;
+  };
+  const handledocumentclick = (e) => {
+    if (
+      e.target.classList.contains("list-item") ||
+      e.target.classList.contains("MuiTypography-root")
+    ) {
+      const listitem = e.target;
+      console.log(listitem.getAttribute("data_id"));
+    }
+
+    // console.log(e.target);
+  };
   const handlecreateroom = (event) => {
     const roomtitle = room_title;
     const roomname = room_name;
+    const did = docid;
 
+    setcreateroomloading(true);
     if (socket) socket.disconnect();
 
     localStorage.setItem("roomName", room_name);
 
-    socket = io("http://localhost:3002");
+    axios({
+      url: "http://localhost:3002/api/v1/routes/create_room",
+      method: "POST",
+      data: { roomtitle, roomname, did },
+      headers: {
+        "auth-token": JSON.parse(localStorage.getItem("auth_token")).auth_token,
+      },
+    })
+      .then((response) => {
+        localStorage.setItem("token",response.data.auth_token);
+        setmessage("Room created successfully");
+        setcreateroomloading(false);
+        handleAlertClick();
+        handleClose();
+        socket = io("http://localhost:3002");
+        const username = JSON.parse(localStorage.getItem("auth_token")).name;
 
-    socket.emit("join-room", roomname);
+        socket.emit("join-room", roomname, username);
+        if (socket) {
+          socket.on("connect", () => {
+            console.log("Socket connected");
+          });
 
-    socket.on("connect", () => {
-      console.log("Socket connected");
-    });
+          socket.on("disconnect-user", (name) => {
+            setmessage(`${name} leave this document`);
+            handleAlertClick();
+          });
 
-    socket.on("yjs-update", (update) => {
-      const updatedarray = new Uint8Array(update);
+          socket.on("chat-message", (data) => {
+            const chatdata = JSON.parse(data);
+            setchats((chats) => [...chats, chatdata]);
+          });
+          socket.on("yjs-update", (update) => {
+            const updatedarray = new Uint8Array(update);
 
-      yDoc.transact(() => {
-        Y.applyUpdate(yDoc, updatedarray);
+            yDoc.transact(() => {
+              Y.applyUpdate(yDoc, updatedarray);
+            });
+
+            // error on this upper line unexpected end of array
+          });
+
+          socket.on("room-join", (username) => {
+            setmessage(`${username} Joined this document`);
+            handleAlertClick();
+          });
+          socket.on("disconnect-user", (name) => {
+            setmessage(`${name} leave this document`);
+            handleAlertClick();
+          });
+        }
+      })
+      .catch((error) => {
+        setcreateroomloading(false);
       });
 
-      const delta = yText.toDelta();
-
-      // error on this upper line unexpected end of array
-    });
-
-    socket.on("disconnect", () => {
-      console.log("Socket disconnected");
-    });
+    // setcreateroomloading(false);
   };
 
   // const handleEditorChange = (content) => {
@@ -372,27 +535,88 @@ function Editor() {
   const handlejoinroom = () => {
     if (socket) socket.disconnect();
 
-    socket = io("http://localhost:3002");
-    socket.emit("join-room", join_room_name);
-    localStorage.setItem("roomName", join_room_name);
+    const room_name = join_room_name;
 
-    socket.on("connect", () => {
-      console.log("Socket connected");
-    });
+    axios({
+      url: "http://localhost:3002/api/v1/routes/room_user_binding",
+      method: "POST",
+      data: { room_name },
+      headers: {
+        "auth-token": JSON.parse(localStorage.getItem("auth_token")).auth_token,
+      },
+    })
+      .then((response) => {
+        if (response.data.status === "success") {
+          localStorage.setItem("doc_id", response.data.data);
+          localStorage.setItem("roomName", join_room_name);
+          if (response.data.isAdmin) {
+            localStorage.setItem("token", response.data.auth_token);
+          }
+          handleClose3();
+          handleAlertClick();
 
-    socket.on("yjs-update", (update) => {
-      const updatedarray = new Uint8Array(update);
+          window.location.href = `/editor/${localStorage.getItem("doc_id")}`;
+        }
+      })
+      .catch((error) => {
+        //  setcreateroomloading(false);
 
-      yDoc.transact(() => {
-        Y.applyUpdate(yDoc, updatedarray);
+        console.log(error);
       });
-
-
-      // error on this upper line unexpected end of array
-    });
   };
-  // value={value}
-  // onChange={handleEditorChange}
+
+  const handlechatbox = () => {
+    const chat_box = document.getElementById("chat_box");
+    const quill_container = document.getElementsByClassName("ql-container");
+    console.log(quill_container);
+    chat_box.style.display = "none";
+    // quill_container.style.float = "";
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.keyCode === 13 && !event.shiftKey) {
+      event.preventDefault(); // Prevents adding a newline character
+      // sendMessage();
+      if (message2 === "" || message2.trim() === "") {
+        return;
+      }
+      const user_id = JSON.parse(localStorage.getItem("auth_token")).userid;
+      const name = JSON.parse(localStorage.getItem("auth_token")).name;
+      const room_id = localStorage.getItem("roomName");
+      const doc_id = localStorage.getItem("doc_id");
+      axios({
+        url: "http://localhost:3002/api/v1/chat/save_chat",
+        method: "POST",
+        data: {
+          user_id: user_id,
+          room_id: room_id,
+          doc_id: doc_id,
+          message: message2,
+          name: name,
+        },
+      })
+        .then((response) => {
+          setMessage2("");
+          setchats((chats) => [
+            ...chats,
+            { user_id: user_id, doc_id: doc_id, message: message2, name: name },
+          ]);
+          socket.emit(
+            "send-message",
+            JSON.stringify({
+              user_id: user_id,
+              doc_id: doc_id,
+              message: message2,
+              name: name,
+            })
+          );
+        })
+        .catch((error) => {
+          console.log(error);
+        });
+    }
+  };
+
   return (
     <div>
       <Navbar
@@ -400,12 +624,99 @@ function Editor() {
         handledocument={handleOpen2}
         handlejoinroom={handleClick3}
         socket={socket}
+        handlepopup={handlepopup}
+        handleexitroom={handleexitroom}
+        handlechatbox={handlechatbox}
       />
-
       <div id="container">
         <div ref={editorRef}></div>
-        <button onClick={handleOpen2}>popup</button>
+        <div id="chat_box">
+          <div className="chat_top_container">
+            <div className="chat_title">Chat here</div>
+          </div>
+          <div className="chat_container">
+            <ScrollableFeed>
+              {socket ? (
+                chats && chats.length > 0 ? (
+                  chats.map((data) => {
+                    return data.user_id ===
+                      JSON.parse(localStorage.getItem("auth_token")).userid ? (
+                      <LeftBubble message={data.message}></LeftBubble>
+                    ) : (
+                      <RightBubble
+                        username={data.name}
+                        message={data.message}
+                      ></RightBubble>
+                    );
+                  })
+                ) : (
+                  <div className="no-message">Let's share your views with chat</div>
+                )
+              ) : (
+                <div className="join_room_message_to_chat">
+                  Please Join or create room to use chat
+                </div>
+              )}
+            </ScrollableFeed>
+          </div>
+          {socket ? (
+            <div style={bottomDivStyle}>
+              <div className="textarea">
+                <TextareaAutosize
+                  style={textareaStyle}
+                  value={message2}
+                  onChange={handletextareachange}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Share your message..."
+                />
+              </div>
+            </div>
+          ) : (
+            ""
+          )}
+        </div>
       </div>
+      {/* popover  */}
+      <Popover
+        open={Boolean(popupvariable)}
+        anchorEl={popupvariable}
+        onClose={handleclosepopup}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "center",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "center",
+        }}
+      >
+        <div style={{ padding: "16px", display: "flex", alignItems: "center" }}>
+          <Typography variant="body1" gutterBottom>
+            <span
+              style={{
+                fontWeight: "bold",
+                fontSize: "14px",
+                display: "inline-block",
+                border: "1px solid #e3d1d1",
+                padding: "4px 8px",
+                borderRadius: "4px",
+              }}
+            >
+              {localStorage.getItem("roomName")}
+              <IconButton
+                onClick={handleCopy}
+                disabled={isCopied}
+                sx={{
+                  marginLeft: "8px",
+                  flex: "0 0 auto",
+                }}
+              >
+                <ContentCopyIcon style={{ fontSize: "0.7em" }} />
+              </IconButton>
+            </span>
+          </Typography>
+        </div>
+      </Popover>
 
       {/* create room ------------- */}
       <Dialog
@@ -449,15 +760,15 @@ function Editor() {
             </Typography>
           </div>
           <Button
+            disabled={createromloading ? true : false}
             className="create_room"
             variant="contained"
             onClick={handlecreateroom}
           >
-            Create Room
+            {createromloading ? "Loading..." : "Create Room"}
           </Button>
         </DialogContent>
       </Dialog>
-
       {/* join room dialog --------------*/}
       <Dialog
         open={open3}
@@ -487,7 +798,6 @@ function Editor() {
           </Button>
         </DialogContent>
       </Dialog>
-
       {/* documents dialog -----------*/}
       <Dialog
         open={open2}
@@ -496,7 +806,7 @@ function Editor() {
         fullWidth
         className="custom-modal2"
       >
-        <DialogTitle>Search Your Document</DialogTitle>
+        <DialogTitle>Search Your documentList</DialogTitle>
         <DialogContent>
           <TextField
             label="Search"
@@ -508,17 +818,39 @@ function Editor() {
             margin="normal"
           />
           <List
+            onClick={handledocumentclick}
             className="scrollbar-container"
             style={{ maxHeight: "300px", overflowY: "auto" }}
           >
-            {filteredDocuments.map((document) => (
-              <ListItem key={document.id} button>
-                <ListItemText primary={document.name} />
+            {documentList.map((document) => (
+              <ListItem
+                // className="list-item"
+                // data_id={document.uid}
+                key={document.uid}
+                button
+              >
+                {/* <div className="list-text" data_id={document.uid}> */}
+                <ListItemText data_id={document.uid} primary={document.title} />
+                {/* </div> */}
               </ListItem>
             ))}
           </List>
         </DialogContent>
       </Dialog>
+
+      <Snackbar
+        open={openAlert}
+        autoHideDuration={6000}
+        onClose={handleAlertClose}
+      >
+        <Alert
+          onClose={handleAlertClose}
+          severity="success"
+          sx={{ width: "100%" }}
+        >
+          {message}
+        </Alert>
+      </Snackbar>
     </div>
   );
 }
